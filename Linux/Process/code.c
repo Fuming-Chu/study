@@ -4,11 +4,17 @@
 #include<unistd.h>
 
 int main()
-{ 
-	printf("process is running,only me! pid : %d \n",getpid());
-	fork();
-	printf("hello linux pid : %d , ppid : %d \n",getpid(),getppid());
-	sleep(1);
+{
+	pid_t id = getpid();
+	while(1)
+	{
+		printf("I am process pid: %d \n",getpid());
+		sleep(1);
+	}
+//	printf("process is running,only me! pid : %d \n",getpid());
+//	fork();
+//	printf("hello linux pid : %d , ppid : %d \n",getpid(),getppid());
+//	sleep(1);
 
 //	pid_t id = getpid();
 //	pid_t parent = getppid();
