@@ -3,8 +3,11 @@
 #include<unistd.h>
 #include<string.h>
 #include<errno.h>
+#include<ctype.h>
 #include<sys/types.h>
 #include<sys/wait.h>
+#include<sys/stat.h>
+#include<fcntl.h>
 
 
 
@@ -12,6 +15,23 @@
 #define ZERO '\0'
 #define NUM 32
 #define SEP " "
+
+// "ls -a -l -n > myfile.txt"
+#define None_Redir 0
+#define In_Redir 1
+#define Out_Redir 2
+#define App_Redir 3
+
+#define SkipSpace(cmd,pos) do{\
+	while(1){\
+		if(isspace(cmd[pos])) pos++;\
+		else break;\
+	}\
+}while(0)
+
+int redir_type = None_Redir;
+char* filename = NULL;
+
 char cwd[SIZE*3];
 char* sArgv[NUM];
 int lastcode = 0;
@@ -79,6 +99,28 @@ void ExecuteCommand()
 	if(pid < 0 ) {perror("fork fail!\n");}
 	else if(pid == 0)
 	{
+		//重定向设置
+		if(filename != NULL)
+		{
+			if(redir_type == In_Redir)
+			{
+				int fd = open(filename,O_RDONLY);
+				dup2(fd,0);	//输入重定向
+			}
+			else if(redir_type == Out_Redir)
+			{
+				int fd = open(filename,O_WRONLY | O_CREAT | O_TRUNC,0666);
+				dup2(fd,1);//输出重定向
+			}
+			else if(redir_type == App_Redir)
+			{
+				
+				int fd = open(filename,O_WRONLY | O_CREAT | O_APPEND,0666);
+				dup2(fd,1);//追加重定向
+			}
+			else{}
+		}
+
 		//child
 		execvp(sArgv[0],sArgv);
 		exit(errno);
@@ -142,13 +184,59 @@ int CheckBuildin()
 
 }
 
+void CheckRedir(char cmd[])
+{
+
+	int pos = 0;
+	int end = strlen(cmd);
+
+	while(pos < end)
+	{
+
+		if(cmd[pos] == '>')
+		{
+			if(cmd[pos+1] == '>')
+			{
+
+				cmd[pos++] = 0;
+				pos++;
+				redir_type = App_Redir;
+				SkipSpace(cmd,pos);
+				filename = cmd + pos;
+			}
+			else 
+			{
+				cmd[pos++] = 0;
+				redir_type = Out_Redir;
+				SkipSpace(cmd,pos);
+				filename = cmd + pos;
+
+			}
+		}
+		else if(cmd[pos] == '<')
+		{
+			cmd[pos] = 0; //分割
+			redir_type = In_Redir;
+			SkipSpace(cmd,pos);	//跳过空格
+			filename = cmd + pos;	//拿到文件名的起始地址
+		}
+		else 
+		{
+			pos++;
+		}
+
+	}
+}
+
 
 int main()
 {
 	int q = 0;
 	while(!q)
 	{
-				
+		//0 重置		
+		redir_type = None_Redir;
+		filename = NULL;
 	    //1 获取命令行
 	    MakeCommandLine();
 
@@ -158,6 +246,14 @@ int main()
 	    int n = GetUserCommand(usercommand,sizeof(usercommand));
 	    if(n <= 0) return 1; //tmp
 	    
+		//2.1 checkredir
+		CheckRedir(usercommand);
+		
+		//debug
+	//	printf("cmd : %s\n",usercommand);
+	//	printf("redir : %d\n",redir_type);
+	//	printf("filename : %s\n",filename);
+
 	    //3 分割命令行字符串
 	    SplitUserCommand(usercommand,sizeof(usercommand));
         
